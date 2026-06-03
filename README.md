@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/hero-banner.png" alt="Protect Soundboard" width="100%">
+
 ```
    ___          _            _     ____                       _ _                      _
   | _ \_ _ ___ | |_ ___  __ | |_  / ___| ___  _   _ _ __   __| | |__   ___   __ _ _ __| |
@@ -165,9 +167,12 @@ protect-soundboard/
 ├── sounds/               # drop audio files here → they become buttons
 ├── templates/index.html  # the whole mobile-first UI (single file)
 ├── static/               # PWA manifest, service worker, icon
-└── docs/
-    └── CONTROLLING-UNIFI-PROTECT-AUDIO.md   # standalone how-to + code
+├── docs/
+│   └── CONTROLLING-UNIFI-PROTECT-AUDIO.md   # standalone how-to + code
+└── promo/                # brand kit: icons, social cards, ASCII art, post copy
 ```
+
+> 🎨 Brand assets, social cards, and ready-to-post copy live in [`promo/`](promo/README.md).
 
 ---
 
