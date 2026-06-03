@@ -1,0 +1,12 @@
+{
+  "name": "Protect Soundboard",
+  "short_name": "Soundboard",
+  "description": "Tap to play messages on the UniFi Protect horn + siren",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#11111b",
+  "theme_color": "#11111b",
+  "icons": [
+    {"src": "/static/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

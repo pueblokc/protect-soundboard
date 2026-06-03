@@ -1,0 +1,16 @@
+{
+  "_comment": "Spoken message presets (streamed as TTS to the horn). Editable in-app. Sound effects are files in sounds/.",
+  "tts": [
+    {"label": "Get Off My Lawn", "icon": "🚫", "text": "Attention. You are on private property. Please leave immediately.", "color": "#f38ba8"},
+    {"label": "Intruder Alert", "icon": "🚨", "text": "Warning. Intruder detected. The police have been notified. Leave the property now.", "color": "#f38ba8"},
+    {"label": "You're Being Recorded", "icon": "📹", "text": "You are being recorded. Smile for the camera.", "color": "#eba0ac"},
+    {"label": "No Soliciting", "icon": "🚷", "text": "No soliciting. Please do not knock or ring the doorbell.", "color": "#cba6f7"},
+    {"label": "Leave the Package", "icon": "📦", "text": "Please leave the package at the front door. Thank you.", "color": "#89b4fa"},
+    {"label": "Welcome", "icon": "👋", "text": "Welcome. Please come to the front door.", "color": "#a6e3a1"},
+    {"label": "Kids, Come Inside", "icon": "🏠", "text": "Hey kids, time to come inside.", "color": "#89dceb"},
+    {"label": "Beware of Dog", "icon": "🐕", "text": "Warning. There is a dog on the premises. Do not enter the yard.", "color": "#fab387"},
+    {"label": "No Barking (Neighbor)", "icon": "🔇", "text": "Attention neighbor. Your dog has been barking non-stop. Please bring your dog inside and keep it quiet. Thank you.", "color": "#fab387"},
+    {"label": "Be Right There", "icon": "🏃", "text": "Hello. I'll be right there.", "color": "#a6e3a1"},
+    {"label": "Thank You", "icon": "😊", "text": "Thank you. Have a great day.", "color": "#a6e3a1"}
+  ]
+}

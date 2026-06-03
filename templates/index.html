@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11111b">
+<title>Protect Soundboard</title>
+<link rel="manifest" href="/static/manifest.json">
+<link rel="icon" href="/static/icon.png">
+<link rel="apple-touch-icon" href="/static/icon.png">
+<style>
+:root{--base:#1e1e2e;--mantle:#181825;--crust:#11111b;--surface0:#313244;--surface1:#45475a;
+  --text:#cdd6f4;--sub:#a6adc8;--blue:#89b4fa;--green:#a6e3a1;--red:#f38ba8;--yellow:#f9e2af;--mauve:#cba6f7;--peach:#fab387;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--crust);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,var(--mantle),rgba(24,24,37,.96));backdrop-filter:blur(8px);padding:14px 16px 10px;border-bottom:1px solid var(--surface0)}
+.title{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700}
+.pills{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pill{display:flex;align-items:center;gap:6px;background:var(--surface0);border-radius:999px;padding:5px 11px;font-size:12.5px;color:var(--sub)}
+.pill b{color:var(--text)}
+.led{width:9px;height:9px;border-radius:50%;background:var(--surface1)}
+.led.on{background:var(--green);box-shadow:0 0 6px var(--green)} .led.off{background:var(--red)}
+.led.active{background:var(--red);box-shadow:0 0 8px var(--red);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.4}}
+main{padding:14px 16px 32px;max-width:760px;margin:0 auto}
+.vol{background:var(--mantle);border:1px solid var(--surface0);border-radius:16px;padding:14px;margin-bottom:16px}
+.vol-row{display:flex;align-items:center;gap:12px;margin:8px 0}
+.vol-row label{width:56px;font-size:13px;color:var(--sub);flex:none}
+.vol-row .pct{width:42px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;flex:none}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:28px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:8px;background:linear-gradient(90deg,var(--blue),var(--mauve))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;margin-top:-9px;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.loud{display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:13px;color:var(--sub)}
+.switch{position:relative;width:46px;height:26px;flex:none}.switch input{display:none}
+.switch span{position:absolute;inset:0;background:var(--surface1);border-radius:999px;transition:.2s}
+.switch span:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+span{background:var(--peach)}.switch input:checked+span:before{transform:translateX(20px)}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--sub);margin:18px 4px 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.btn{border:none;border-radius:16px;padding:16px 8px;background:var(--surface0);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;min-height:84px;justify-content:center;transition:transform .08s,filter .15s;text-align:center;line-height:1.2}
+.btn .ic{font-size:26px}
+.btn:active{transform:scale(.94);filter:brightness(1.25)}
+.btn.fire{animation:fire .5s}
+@keyframes fire{0%{box-shadow:0 0 0 0 var(--green)}100%{box-shadow:0 0 0 14px rgba(166,227,161,0)}}
+.tts-box{display:flex;gap:8px;margin-top:8px}
+.tts-box input{flex:1;background:var(--surface0);border:1px solid var(--surface1);color:var(--text);border-radius:12px;padding:14px;font-size:16px}
+.speak{background:var(--green);color:#11111b;border:none;border-radius:12px;padding:0 20px;font-weight:800;font-size:15px;cursor:pointer}
+.dur{display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--sub);font-size:13px}
+select{background:var(--surface0);color:var(--text);border:1px solid var(--surface1);border-radius:10px;padding:10px;font-size:14px}
+.siren-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.siren-row .big{min-height:64px;font-size:15px}.siren-go{background:var(--red);color:#fff}.siren-stop{background:var(--surface0)}
+.muted{color:var(--surface1);font-size:12px;margin:6px 4px}
+#toast{position:fixed;left:50%;bottom:calc(72px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--surface1);color:var(--text);padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:50;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)} #toast.err{background:var(--red);color:#fff}
+.warn{background:rgba(243,139,168,.15);border:1px solid var(--red);color:var(--red);border-radius:12px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;display:none}
+footer{text-align:center;color:var(--surface1);font-size:11.5px;padding:18px 0 24px}footer a{color:var(--sub);text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="title"><span>📣</span> Protect Soundboard</div>
+  <div class="pills">
+    <div class="pill"><span class="led" id="led-horn"></span> Horn <b id="vol-horn">–</b></div>
+    <div class="pill"><span class="led" id="led-siren"></span> Siren <b id="vol-siren">–</b></div>
+    <div class="pill" id="pill-cap">cap <b id="cap">–</b></div>
+    <div class="pill" id="pill-tts"></div>
+  </div>
+</header>
+<main>
+  <div class="warn" id="warn"></div>
+
+  <div class="vol">
+    <div class="vol-row"><label>🔊 Horn</label><input type="range" id="r-horn" min="0" max="100" value="40"><span class="pct" id="p-horn">40</span></div>
+    <div class="vol-row"><label>📢 Siren</label><input type="range" id="r-siren" min="0" max="100" value="30"><span class="pct" id="p-siren">30</span></div>
+    <div class="loud"><span>Allow loud (above cap)</span><label class="switch"><input type="checkbox" id="loud"><span></span></label></div>
+  </div>
+
+  <h2>Say something</h2>
+  <div class="tts-box">
+    <input id="tts-text" placeholder="Type anything to speak on the horn…" autocomplete="off">
+    <button class="speak" id="speak">SPEAK</button>
+  </div>
+
+  <h2>Messages</h2>
+  <div class="grid" id="grid-tts"></div>
+
+  <h2>Sounds</h2>
+  <div class="grid" id="grid-snd"></div>
+  <div class="muted" id="snd-empty" style="display:none">Drop audio files (mp3/wav) into the app's <code>sounds/</code> folder — they appear here as buttons.</div>
+
+  <h2>Siren</h2>
+  <div class="dur">Duration <select id="dur"><option>5</option><option selected>10</option><option>30</option><option>60</option></select> sec</div>
+  <div class="siren-row">
+    <button class="btn big siren-go" id="siren-go"><span class="ic">🚨</span>Trigger Siren</button>
+    <button class="btn big siren-stop" id="siren-stop"><span class="ic">🛑</span>Stop</button>
+  </div>
+</main>
+<div id="toast"></div>
+<footer>© <span id="yr"></span> KCCS · <a href="https://kccsonline.com">kccsonline.com</a> · horn control</footer>
+
+<script>
+const $=s=>document.querySelector(s);
+$("#yr").textContent=new Date().getFullYear();
+const loud=()=>$("#loud").checked, vol=k=>+$("#r-"+k).value;
+let toastT;
+function toast(m,err){const t=$("#toast");t.textContent=m;t.className="show"+(err?" err":"");clearTimeout(toastT);toastT=setTimeout(()=>t.className="",2200);}
+async function post(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});return r.json();}
+for(const k of ["horn","siren"]){const r=$("#r-"+k),p=$("#p-"+k);
+  r.addEventListener("input",()=>p.textContent=r.value);
+  r.addEventListener("change",async()=>{const j=await post("/api/volume",{target:k,volume:+r.value,allow_loud:loud()});if(j.ok){r.value=j.volume;p.textContent=j.volume;}refresh();});}
+async function fire(el,fn,label){el.classList.add("fire");setTimeout(()=>el.classList.remove("fire"),500);
+  el.disabled=true;try{const j=await fn();toast(j.ok?("▶ "+label):("✕ "+(j.error||"failed")),!j.ok);}catch(e){toast("✕ "+e,1);}el.disabled=false;refresh();}
+async function build(){
+  const p=await(await fetch("/api/presets")).json();
+  const gt=$("#grid-tts");gt.innerHTML="";
+  (p.tts||[]).forEach(x=>{const b=document.createElement("button");b.className="btn";if(x.color){b.style.background=x.color;b.style.color="#11111b";}
+    b.innerHTML=`<span class="ic">${x.icon||"💬"}</span>${x.label}`;
+    b.onclick=()=>fire(b,()=>post("/api/speak",{text:x.text,volume:vol("horn"),allow_loud:loud()}),x.label);gt.appendChild(b);});
+  const s=await(await fetch("/api/sounds")).json();
+  const gs=$("#grid-snd");gs.innerHTML="";
+  (s.sounds||[]).forEach(f=>{const name=f.replace(/\.[^.]+$/,"");const b=document.createElement("button");b.className="btn";
+    b.innerHTML=`<span class="ic">🔊</span>${name}`;
+    b.onclick=()=>fire(b,()=>post("/api/play-sound",{file:f,volume:vol("horn"),allow_loud:loud()}),name);gs.appendChild(b);});
+  $("#snd-empty").style.display=(s.sounds||[]).length?"none":"block";
+}
+$("#speak").onclick=()=>{const t=$("#tts-text").value.trim();if(!t)return toast("Type something first",1);
+  fire($("#speak"),()=>post("/api/speak",{text:t,volume:vol("horn"),allow_loud:loud()}),"speaking");};
+$("#tts-text").addEventListener("keydown",e=>{if(e.key==="Enter")$("#speak").click();});
+$("#siren-go").onclick=()=>fire($("#siren-go"),()=>post("/api/siren",{action:"activate",duration:+$("#dur").value,volume:vol("siren"),allow_loud:loud()}),"siren on");
+$("#siren-stop").onclick=()=>fire($("#siren-stop"),()=>post("/api/siren",{action:"stop"}),"siren off");
+async function refresh(){try{const s=await(await fetch("/api/status")).json();
+  if(s.error){$("#warn").style.display="block";$("#warn").textContent="NVR error: "+s.error;return;}
+  $("#warn").style.display="none";
+  led("#led-horn",s.horn.connected);$("#vol-horn").textContent=s.horn.volume??"–";
+  led("#led-siren",s.siren.connected);$("#led-siren").classList.toggle("active",!!s.siren.active);
+  $("#vol-siren").textContent=s.siren.volume??"–";$("#cap").textContent=s.max_volume;
+  $("#pill-tts").textContent=(s.tts&&s.tts.elevenlabs)?"🎙 premium voice":"🎙 built-in voice";
+}catch(e){}}
+function led(sel,on){const l=$(sel);l.classList.remove("on","off");l.classList.add(on?"on":"off");}
+build();refresh();setInterval(refresh,8000);
+if("serviceWorker"in navigator)navigator.serviceWorker.register("/static/sw.js").catch(()=>{});
+</script>
+</body>
+</html>
