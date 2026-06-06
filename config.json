@@ -1,9 +1,9 @@
 {
-  "_comment": "No secrets here. Credentials + ELEVENLABS_API_KEY come from the environment (.env in dev, or your service manager in prod). Audio is streamed live to the speaker via talkback (talkback.py) — no automations or owner account needed. Find your device IDs/MAC with: GET https://<nvr>/proxy/protect/api/bootstrap (see docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md).",
+  "_comment": "No secrets here. Credentials + ELEVENLABS_API_KEY come from the environment (.env in dev, or your service manager in prod). tts_mode 'unifi' = native Protect TTS (clean, robotic voice) and is the reliable default. Talkback streaming garbles on Protect 7.1.x, so ElevenLabs-via-talkback is opt-in (set 'elevenlabs_then_unifi'). Sound-effect files still use talkback (the only path for arbitrary audio on the horn). Find device IDs/MAC with: GET https://<nvr>/proxy/protect/api/bootstrap (see docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md).",
   "host": "192.168.1.100",
   "port": 5123,
   "max_volume": 60,
-  "tts_mode": "elevenlabs_then_unifi",
+  "tts_mode": "unifi",
   "devices": {
     "horn_id": "REPLACE_WITH_SPEAKER_ID",
     "horn_mac": "REPLACE_WITH_SPEAKER_MAC",

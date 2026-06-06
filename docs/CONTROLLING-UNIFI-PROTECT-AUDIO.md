@@ -13,13 +13,19 @@ Protect's private API. Everything here is **verified on Protect 7.x** and is exa
 > Nothing here is an officially supported integration. Use a dedicated, minimal-permission local account and
 > keep it on your own network.
 
+> 🎯 **TL;DR — which method gives clean audio?**
+> For **speech, use native TTS** (§5 — `PLAY_TEXT_ON_SPEAKER`). It's robotic but **reliable and never garbles**.
+> The **talkback stream** (§4) is the *only* way to play an arbitrary audio **file** on the horn, but on
+> **Protect 7.1.x it garbles intermittently** (host-independent — reproduced from a clean, idle machine), so
+> treat it as best-effort. See [§7 — garble & two leads toward a clean file path](#7-the-talkback-garble-and-two-leads-toward-a-clean-file-path).
+
 There are **three** independent control paths. Pick the one that matches what you want:
 
-| Goal | Mechanism | Section |
-|------|-----------|---------|
-| Play **arbitrary audio** (a file, or premium TTS bytes) | **Talkback WebSocket stream** | [§4](#4-stream-arbitrary-audio-talkback) |
-| Speak text in the **free built-in voice** | `POST /automations/run` (Test-Alarm dry-run) | [§5](#5-built-in-text-to-speech-free) |
-| **Siren** on/off and **volume** | Direct `PATCH` on the device | [§3](#3-siren-and-volume-direct-patch) |
+| Goal | Mechanism | Quality | Section |
+|------|-----------|---------|---------|
+| Speak **text** (the reliable path) | `POST /automations/run` → `PLAY_TEXT_ON_SPEAKER` | ✅ clean, robotic | [§5](#5-built-in-text-to-speech-free-and-clean) |
+| Play an **arbitrary audio file** | **Talkback WebSocket stream** | ⚠️ best-effort, may garble on 7.1.x | [§4](#4-stream-arbitrary-audio-talkback) |
+| **Siren** on/off and **volume** | Direct `PATCH` on the device | ✅ clean | [§3](#3-siren-and-volume-direct-patch) |
 
 ---
 
@@ -116,10 +122,16 @@ Read current state back from bootstrap: `siren["sirenStatus"]["isActive"]`.
 
 ## 4. Stream arbitrary audio (talkback)
 
-This is the powerful one. Protect's **talkback** channel — the same path the mobile app uses for
-push-to-talk — accepts a live audio stream that the NVR relays to the speaker. Feed it the bytes of *any*
-audio file (or the MP3 a TTS engine hands you) and the horn plays it. **No automation, no owner account,
-no frozen/preset content.**
+Protect's **talkback** channel — the same path the mobile app uses for push-to-talk — accepts a live audio
+stream that the NVR relays to the speaker. Feed it the bytes of *any* audio file (or the MP3 a TTS engine
+hands you) and the horn plays it. **No automation, no owner account, no frozen/preset content.** This is the
+**only** way to play an arbitrary audio *file* on the horn.
+
+> ⚠️ **It can garble on Protect 7.1.x.** In practice this path is intermittently choppy/garbled on current
+> firmware, and it's **host-independent** (reproduced from a clean, idle machine, so it isn't your CPU/GC/timer
+> jitter). For **speech, prefer native TTS (§5)** — it never garbles. Use talkback for non-critical sound
+> effects, and see [§7](#7-the-talkback-garble-and-two-leads-toward-a-clean-file-path) for two leads toward a
+> garble-free file path.
 
 ### The shape of it
 
@@ -217,11 +229,12 @@ stream(HOST, token, SPEAKER_ID, elevenlabs_mp3_path)     # premium TTS (see §6)
 
 ---
 
-## 5. Built-in text-to-speech (free)
+## 5. Built-in text-to-speech (free and clean) ⭐ recommended for speech
 
-If you don't want an external TTS provider, Protect's own voice can speak text live. It's the console's
-**"Test Alarm"** dry-run: `POST /automations/run` with a `PLAY_TEXT_ON_SPEAKER` action. It plays immediately
-and saves nothing.
+Protect's own voice can speak text live, and **this is the path that never garbles** — it's the reliable way
+to get speech onto the horn. It's the console's **"Test Alarm"** dry-run: `POST /automations/run` with a
+`PLAY_TEXT_ON_SPEAKER` action. Plays immediately, saves nothing. The voice is robotic, but it's clean and
+unlimited. (The Protect Soundboard app defaults to exactly this.)
 
 ```python
 import uuid
@@ -247,9 +260,11 @@ Free and unlimited, but a plainer voice than a dedicated TTS engine.
 
 ---
 
-## 6. Premium text-to-speech (talkback + a TTS API)
+## 6. Premium text-to-speech (talkback + a TTS API) — opt-in
 
-For a natural voice, synthesize MP3 with any TTS provider and stream it via §4. Example with ElevenLabs:
+For a natural voice, synthesize MP3 with any TTS provider and stream it via §4. **Because it rides the
+talkback path, it inherits the 7.1.x garble** — so it's a nice-to-have, not the reliable path. Keep it
+opt-in and fall back to §5 if you need guaranteed-clean speech. Example with ElevenLabs:
 
 ```python
 import requests
@@ -274,13 +289,40 @@ Cache by a hash of `(voice, model, text)` so repeated phrases don't re-bill the 
 
 ---
 
-## 7. Gotchas & tips
+## 7. The talkback garble, and two leads toward a clean file path
+
+On **Protect 7.1.x** the talkback stream (§4) is intermittently garbled. It is **host-independent**: the same
+garble reproduces from a clean, idle machine, so it is *not* your CPU load, GC pauses, or timer granularity —
+the usual pacing fixes (high-res timer, process priority) help but don't eliminate it. That's why, for speech,
+**native TTS (§5) is the reliable choice** and this app defaults to it. For arbitrary sound-effect *files*,
+talkback is currently the only option, so it's best-effort.
+
+Two concrete leads (from the speaker's own `bootstrap` entry) that may yield a **garble-free file path** —
+both unverified, offered as a starting point if you want to dig:
+
+- **The horn's native talkback format is Opus, not AAC.** `bootstrap.speakers[].talkbackSettings` reports
+  `{"typeFmt": "opus", "samplingRate": 24000, "bitsPerSample": 16, "channels": 1}`. This guide (and the app)
+  send **AAC-LC ADTS**, which the NVR appears to accept and transcode — that transcode is a prime suspect for
+  the garble. Encoding to Opus to match the device's native format (e.g. `ffmpeg -c:a libopus -ar 24000 -ac 1`,
+  framed appropriately for the WS) is worth testing.
+- **The horn stores audio clips on-device.** The same entry exposes `audioList` (a list of clip IDs) and
+  `speakerState.files` (clips physically stored on the speaker, with sizes/MD5s, in ~10 MB of onboard storage).
+  That implies a **native "play stored clip" action** exists — which, like native TTS, would play locally on
+  the speaker and bypass streaming entirely (no garble). Uploading a clip and triggering it natively would be
+  the clean way to play custom sound effects. Note `featureFlags.supportCustomRingtone` is `false` on this
+  hardware, so whether *custom* clips are playable (vs. only built-in ones) needs verification.
+
+If you crack either of these, please open an issue/PR — it would make custom audio on the horn as clean as TTS.
+
+---
+
+## 8. Gotchas & tips
 
 | Symptom | Cause / fix |
 |---------|-------------|
 | **No audio at all** | `ffmpeg` not on `PATH`. Talkback silently produces nothing without it. |
 | **First word clipped** | Speaker warm-up after arming. Add leading silence (`adelay=900` above). |
-| **Garbled / choppy audio** | Frames sent too fast (buffer overrun) or too slow (underrun). Keep the ~42.7 ms pacing; on Windows raise timer resolution and avoid GC pauses mid-stream. |
+| **Garbled / choppy speech** | Use **native TTS (§5)** — talkback garbles on 7.1.x regardless of pacing (see §7). For *files*, keep the ~42.7 ms pacing and, on Windows, raise timer resolution / avoid GC mid-stream to minimize it. |
 | **401 mid-session** | Session expired — re-login and retry the request once. |
 | **WebSocket 4xx on connect** | Stale `TOKEN` cookie. Re-login to refresh it, then reconnect. |
 | **`duration` ignored on siren** | It's **milliseconds**, not seconds. `10_000` = 10 s. |
@@ -288,7 +330,7 @@ Cache by a hash of `(voice, model, text)` so repeated phrases don't re-bill the 
 
 ---
 
-## 8. Putting it together
+## 9. Putting it together
 
 A minimal end-to-end controller:
 
@@ -297,9 +339,9 @@ login()                                    # §1  -> session + token
 boot = bootstrap()                         # §2  -> SPEAKER_ID, SPEAKER_MAC, SIREN_ID
 
 set_volume(SPEAKER_ID, 45)                 # §3
-stream(HOST, token, SPEAKER_ID, "air_horn.mp3")            # §4  arbitrary audio
-speak_builtin("Package delivered, thanks", SPEAKER_MAC)    # §5  free voice
-mp3 = synth_elevenlabs("Intruder alert", KEY); stream(...) # §6  premium voice
+speak_builtin("Package delivered, thanks", SPEAKER_MAC)    # §5  clean native voice (preferred)
+stream(HOST, token, SPEAKER_ID, "air_horn.mp3")            # §4  arbitrary file (best-effort, may garble)
+# mp3 = synth_elevenlabs("Intruder alert", KEY); stream(...)  # §6  premium voice (opt-in, inherits garble)
 siren(SIREN_ID, on=True, ms=10_000)        # §3  ten-second siren
 ```
 

@@ -140,7 +140,7 @@ async function refresh(){try{const s=await(await fetch("/api/status")).json();
   led("#led-horn",s.horn.connected);$("#vol-horn").textContent=s.horn.volume??"–";
   led("#led-siren",s.siren.connected);$("#led-siren").classList.toggle("active",!!s.siren.active);
   $("#vol-siren").textContent=s.siren.volume??"–";$("#cap").textContent=s.max_volume;
-  $("#pill-tts").textContent=(s.tts&&s.tts.elevenlabs)?"🎙 premium voice":"🎙 built-in voice";
+  $("#pill-tts").textContent=(s.tts&&s.tts.elevenlabs&&s.tts.mode&&s.tts.mode!=="unifi")?"🎙 premium voice":"🎙 clean voice";
 }catch(e){}}
 function led(sel,on){const l=$(sel);l.classList.remove("on","off");l.classList.add(on?"on":"off");}
 build();refresh();setInterval(refresh,8000);

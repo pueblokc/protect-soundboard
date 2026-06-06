@@ -56,7 +56,7 @@ def transcode_to_adts(path, ffmpeg="ffmpeg"):
          # not the first word; downmix + 24kHz mono AAC-LC for the talkback codec.
          "-af", "adelay=900:all=1",
          "-c:a", "aac", "-profile:a", "aac_low", "-ar", "24000", "-ac", "1",
-         "-b:a", "32k", "-f", "adts", "pipe:1"],
+         "-b:a", "48k", "-f", "adts", "pipe:1"],
         capture_output=True,
     )
     if p.returncode != 0:

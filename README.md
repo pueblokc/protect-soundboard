@@ -45,9 +45,9 @@ Tap a preset to bark "get off my lawn." Slam the siren. All from your phone.
 
 | Feature | Description |
 |---------|-------------|
-| 🗣️ **Say something** | Type any text → the AI Horn speaks it aloud, live. |
+| 🗣️ **Say something** | Type any text → the AI Horn speaks it aloud, live, in Protect's **clean native voice**. |
 | 💬 **Message presets** | One-tap spoken messages — *Get Off My Lawn*, *Intruder Alert*, *You're Being Recorded*, *No Soliciting*… (fully editable in-app). |
-| 🔊 **Sound effects** | Drop any `.mp3`/`.wav` into `sounds/` and it appears as a button. Air horn, alarm beep, dog bark, whatever. |
+| 🔊 **Sound effects** | Drop any `.mp3`/`.wav` into `sounds/` and it appears as a button. Air horn, alarm beep, dog bark, whatever. *(streamed via talkback — see the firmware note below)* |
 | 🚨 **Siren** | Trigger the PoE siren for 5 / 10 / 30 / 60 s, or stop it instantly. |
 | 🎚️ **Volume** | Live sliders for horn + siren, clamped to a safety cap (default 60%), with an **Allow loud** override. |
 | 🟢 **Live status** | Connection LEDs + current volume for both devices, refreshed every 8 s. |
@@ -64,33 +64,41 @@ There are **three** distinct control paths, and which one fires depends on what 
    │                          Protect Soundboard (Flask)                      │
    └─────────────────────────────────────────────────────────────────────────┘
         │                          │                              │
-        │ arbitrary audio          │ free built-in TTS            │ siren + volume
-        │ (files + ElevenLabs TTS) │ (fallback voice)             │
+        │ spoken text (DEFAULT)    │ sound-effect FILES           │ siren + volume
+        │ clean native voice       │ (talkback, best-effort)      │
         ▼                          ▼                              ▼
-  ╔══════════════════╗     ╔══════════════════════╗     ╔═══════════════════════╗
-  ║  TALKBACK (WS)   ║     ║  POST /automations/  ║     ║  PATCH /sirens/{id}    ║
-  ║  stream AAC-LC   ║     ║       run            ║     ║  PATCH /speakers/{id}  ║
-  ║  frames to horn  ║     ║  (Test-Alarm dry-run)║     ║  (direct private API)  ║
-  ╚══════════════════╝     ╚══════════════════════╝     ╚═══════════════════════╝
+  ╔══════════════════════╗   ╔══════════════════╗     ╔═══════════════════════╗
+  ║  POST /automations/  ║   ║  TALKBACK (WS)   ║     ║  PATCH /sirens/{id}    ║
+  ║       run            ║   ║  stream AAC-LC   ║     ║  PATCH /speakers/{id}  ║
+  ║  PLAY_TEXT_ON_SPEAKER ║   ║  frames to horn  ║     ║  (direct private API)  ║
+  ╚══════════════════════╝   ╚══════════════════╝     ╚═══════════════════════╝
         │                          │                              │
         ▼                          ▼                              ▼
-   AI Horn plays            AI Horn speaks                Siren sounds /
-   any audio you want       built-in voice                volume changes
+   AI Horn SPEAKS            AI Horn plays a file        Siren sounds /
+   (clean, reliable)        (may garble, see note)       volume changes
 ```
 
-1. **Talkback WebSocket stream** — the workhorse. Open `wss://<nvr>/proxy/protect/ws/talkback?speaker=<id>`,
-   then push **frame-aligned AAC-LC ADTS** (24 kHz mono) as binary WS frames, paced ~42.7 ms each. The NVR
-   relays each frame to the speaker as UDP. This streams **arbitrary audio** — any file, or the MP3 bytes from
-   a premium TTS engine — with **no automations, no owner account, and no 2FA dance**.
-2. **Built-in TTS fallback** — `POST /proxy/protect/api/automations/run` with a `PLAY_TEXT_ON_SPEAKER` action
-   runs the console's *Test Alarm* dry-run, which speaks text live in UniFi's free built-in voice. Used
-   automatically when no ElevenLabs key is configured.
+1. **Native Protect TTS — the clean, default path for speech.** `POST /proxy/protect/api/automations/run`
+   with a `PLAY_TEXT_ON_SPEAKER` action runs the console's *Test Alarm* dry-run: the horn speaks your text
+   live, in Protect's built-in voice. It's robotic, but it's **reliable and never garbles**. Every "Say
+   something" and message-preset button uses this. No owner account, no 2FA.
+2. **Talkback WebSocket stream — for arbitrary audio files.** Open `wss://<nvr>/proxy/protect/ws/talkback?speaker=<id>`
+   and push **frame-aligned AAC-LC ADTS** (24 kHz mono) as binary WS frames, paced ~42.7 ms each; the NVR relays
+   each to the speaker as UDP. This is the **only** way to play an arbitrary audio *file* on the horn — but see
+   the firmware note. (It can also stream premium-TTS MP3 bytes; that's opt-in via `tts_mode`.)
 3. **Direct private-API PATCH** — siren on/off (`sirenStatus`) and volume are simple authenticated `PATCH`
    calls against `/sirens/{id}` and `/speakers/{id}`.
 
+> ⚠️ **Firmware note (Protect 7.1.x): talkback streaming can garble.** On current Protect firmware the talkback
+> audio path is intermittently choppy/garbled, and it's **host-independent** (reproduced from a clean, idle
+> host). So this app **defaults to native TTS** (`tts_mode: "unifi"`) for all speech, which is clean. Talkback
+> is used only for sound-effect files, where it's best-effort. Premium ElevenLabs TTS (streamed via talkback)
+> is **opt-in** (`tts_mode: "elevenlabs_then_unifi"`) precisely because it inherits this garble. See the doc
+> below for two promising leads on a garble-free file path (the horn's native Opus talkback format + its
+> on-device audio-clip list).
+
 > 📖 **Full technical write-up with copy-paste code:** [`docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md`](docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md)
-> — how to authenticate, discover your device IDs, stream audio, speak TTS, trigger the siren, and set volume,
-> independent of this app.
+> — authenticate, discover device IDs, speak clean TTS, stream audio, trigger the siren, set volume.
 
 ---
 
@@ -128,7 +136,7 @@ curl -sk https://<NVR>/proxy/protect/api/bootstrap -b cookies.txt | python -m js
 | `devices.horn_mac` | That speaker's `mac` (used by the built-in-TTS fallback) |
 | `devices.siren_id` | The siren's `id` from `bootstrap.sirens[]` |
 | `max_volume` | Safety cap (0–100). The UI's "Allow loud" toggle overrides it per-press. |
-| `tts_mode` | `elevenlabs_then_unifi` (premium, fall back to free), `elevenlabs`, or `unifi` |
+| `tts_mode` | **`unifi`** (default — clean native voice, recommended) · `elevenlabs_then_unifi` (premium ElevenLabs via talkback, **may garble**, falls back to native) · `elevenlabs` (premium only) |
 
 ---
 

@@ -36,13 +36,27 @@ jitter buffer. Deliver a touch ahead of real time to keep the buffer full, but b
 it overruns and garbles. On Windows we also raise the timer resolution (default sleep granularity is ~15.6 ms,
 coarser than a single frame) and disable GC for the duration so nothing introduces a late frame.
 
+## The honest catch (and the clean path)
+
+Even with all of that, **on Protect 7.1.x the talkback stream still garbles intermittently** — and it's
+**host-independent** (we reproduced it from a clean, idle machine, so it isn't CPU load, GC, or timer jitter).
+So for **speech we don't rely on talkback at all**: we use **native Protect TTS** — `POST /automations/run`
+with a `PLAY_TEXT_ON_SPEAKER` action — which plays the text locally on the speaker, robotic but rock-solid
+clean. Talkback stays in the toolbox for arbitrary sound-effect *files*, where it's best-effort. The app
+defaults to native TTS for every spoken button.
+
+Two leads we found (in the speaker's own `bootstrap`) toward making *files* clean too: the horn's native
+talkback format is actually **Opus**, not the AAC we send (the NVR's transcode is a prime garble suspect), and
+the speaker exposes an on-device **audio-clip list**, implying a native "play stored clip" action that would
+bypass streaming entirely. Both are unverified — documented in the repo as next steps.
+
 ## The three control paths
 
-| Goal | Mechanism |
-|------|-----------|
-| Play arbitrary audio (files + premium TTS) | Talkback WebSocket stream |
-| Speak text in the free built-in voice | `POST /automations/run` (the console "Test Alarm" dry-run) |
-| Siren on/off + volume | Direct `PATCH` on the device |
+| Goal | Mechanism | Quality |
+|------|-----------|---------|
+| Speak text (the reliable path) | `POST /automations/run` → `PLAY_TEXT_ON_SPEAKER` | clean |
+| Play an arbitrary audio file | Talkback WebSocket stream | best-effort (may garble on 7.1.x) |
+| Siren on/off + volume | Direct `PATCH` on the device | clean |
 
 The repo's [`docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md`](https://github.com/pueblokc/protect-soundboard/blob/master/docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md)
 walks through all three with copy-paste Python.

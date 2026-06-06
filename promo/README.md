@@ -67,10 +67,17 @@ Icon motif: a megaphone in a blue→mauve gradient emitting green/yellow/peach s
 
 ### Framing rules (don't skip)
 - Lead with the **talkback reverse-engineering** + the **how-to doc**. The app is the proof, not the pitch.
+- **Audio-clarity honesty (critical):** talkback **garbles on Protect 7.1.x** (host-independent). Speech uses
+  **native TTS** (clean); talkback is best-effort for sound-effect files. The post copy in `posts/` already
+  reflects this — say it plainly. A demo GIF should show the **native-TTS** speech path (clean), *not* a
+  garbly talkback clip.
+- ⚠️ **Stale image text:** the `github-social.png` / `og-card.png` lead line ("stream any audio or TTS to the
+  AI Horn") predates the garble finding. It's not false (you *can* stream), but if you want it precise,
+  regenerate the cards from `~/.claude/work/sb-promo/` with a "native TTS + talkback" split before using them
+  as the GitHub social preview.
 - Be upfront it's a **private/undocumented API, Protect 7.x**. Honesty preempts the "this'll break" pile-on
   and earns that community's trust.
-- A short **demo GIF** (horn speaking a custom line) will outperform static images on Reddit/HN. Capture one
-  if you can.
+- A short **demo GIF** (horn speaking a custom line via native TTS) will outperform static images on Reddit/HN.
 
 ---
 

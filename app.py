@@ -102,8 +102,10 @@ def api_speak():
         return jsonify({"error": "No text"}), 400
     try:
         _set_horn_vol(d)
-        mode = CFG.get("tts_mode", "elevenlabs_then_unifi")
-        # premium: ElevenLabs -> talkback
+        # 'unifi' (native Protect TTS) is the clean default. ElevenLabs is streamed
+        # via talkback, which garbles on Protect 7.1.x — opt in with tts_mode.
+        mode = CFG.get("tts_mode", "unifi")
+        # premium (opt-in): ElevenLabs -> talkback
         if mode != "unifi" and tts.available():
             try:
                 mp3 = tts.synthesize(text)
