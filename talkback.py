@@ -113,7 +113,7 @@ class Talkback:
             return self._tok
         s = requests.Session()
         s.verify = False
-        for attempt in range(2):
+        for _attempt in range(2):
             s.post(f"https://{self.host}/api/auth/login",
                    json={"username": self.username, "password": self.password}, timeout=15)
             tok = s.cookies.get("TOKEN")
