@@ -7,6 +7,7 @@ The app streams the mp3 to the horn via talkback. If ElevenLabs is unavailable
 """
 import hashlib
 import os
+import tempfile
 from pathlib import Path
 import requests
 
@@ -47,5 +48,19 @@ def synthesize(text):
     )
     if r.status_code != 200:
         raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:200]}")
-    f.write_bytes(r.content)
+    if not r.content:
+        raise RuntimeError("ElevenLabs returned empty audio")
+    # write-then-rename so a crash or concurrent request never leaves a truncated
+    # mp3 that the size>0 check above would serve from cache forever
+    fd, tmp = tempfile.mkstemp(dir=CACHE, suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(r.content)
+        os.replace(tmp, f)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return r.content

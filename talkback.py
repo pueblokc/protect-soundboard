@@ -2,7 +2,7 @@
 Talkback streaming to a UniFi Protect speaker (verified on Protect 7.1.60).
 
 Streams ARBITRARY audio (any file, or TTS bytes) to the AI Horn — no owner,
-no 2FA, no automation, no frozen content. See Obsidian reference note.
+no 2FA, no automation, no frozen content. See docs/CONTROLLING-UNIFI-PROTECT-AUDIO.md.
 
 Flow: login (TOKEN cookie) -> open WS /ws/talkback?speaker=<id> (arms device)
 -> send frame-aligned AAC-LC ADTS (24kHz mono) as binary WS frames, paced
@@ -34,7 +34,7 @@ def _win_timer(on):
 
 def _win_priority(high):
     """Boost this process to HIGH priority during a stream so a busy host
-    (Plex, etc.) can't preempt the frame sender mid-playback."""
+    (media server, etc.) can't preempt the frame sender mid-playback."""
     try:
         import ctypes
         k = ctypes.windll.kernel32
@@ -46,22 +46,32 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 FRAME_DT = 1024 / 24000.0  # AAC-LC frame duration at 24kHz mono
+FFMPEG_TIMEOUT = 120  # seconds; a stuck transcode must not pin a request thread forever
 
 
 def transcode_to_adts(path, ffmpeg="ffmpeg"):
     """Transcode a file to AAC-LC ADTS (24kHz mono) — full output bytes."""
-    p = subprocess.run(
-        [ffmpeg, "-hide_banner", "-loglevel", "error", "-i", path,
-         # ~700ms leading silence so the horn's post-arm warmup clips silence,
+    try:
+        p = _run_ffmpeg(ffmpeg, path)
+    except FileNotFoundError:
+        raise RuntimeError(f"ffmpeg not found ({ffmpeg!r}) — install it or set FFMPEG") from None
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("ffmpeg transcode timed out") from None
+    if p.returncode != 0:
+        raise RuntimeError(f"ffmpeg transcode failed: {p.stderr.decode(errors='replace')[:300]}")
+    return p.stdout
+
+
+def _run_ffmpeg(ffmpeg, path):
+    return subprocess.run(
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-i", path,
+         # ~900ms leading silence so the horn's post-arm warmup clips silence,
          # not the first word; downmix + 24kHz mono AAC-LC for the talkback codec.
          "-af", "adelay=900:all=1",
          "-c:a", "aac", "-profile:a", "aac_low", "-ar", "24000", "-ac", "1",
          "-b:a", "48k", "-f", "adts", "pipe:1"],
-        capture_output=True,
+        capture_output=True, timeout=FFMPEG_TIMEOUT,
     )
-    if p.returncode != 0:
-        raise RuntimeError(f"ffmpeg transcode failed: {p.stderr.decode(errors='replace')[:300]}")
-    return p.stdout
 
 
 def split_adts(buf):
