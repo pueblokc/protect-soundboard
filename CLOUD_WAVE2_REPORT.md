@@ -83,7 +83,7 @@ pytest -q
 - No network or hardware is used: the NVR, WebSocket and ElevenLabs are all faked.
 - I also ran a manual headless-Chromium check of the UI against a mocked backend. Checked: token prompt, cancel banner, `?token=` bootstrap, XSS label rendered as text, siren button sends the token.
 
-CI: `.github/workflows/ci.yml` runs ruff + pytest on 3.9/3.12/3.13 with ffmpeg installed. It needs no secrets and has no deploy step. When I checked right after pushing, GitHub showed no workflow run on this branch yet. If none appears, Actions may be disabled on the repo (see "Needs Justin").
+CI: `.github/workflows/ci.yml` runs ruff + pytest on 3.9/3.12/3.13 with ffmpeg installed. It needs no secrets and has no deploy step. **Green on GitHub:** run #2 (`1d311b7`) passed on all three Python versions.
 
 ## Needs Justin
 
@@ -94,7 +94,6 @@ CI: `.github/workflows/ci.yml` runs ruff + pytest on 3.9/3.12/3.13 with ffmpeg i
   - a sound effect plays, and a second tap during playback shows "horn is busy";
   - a long-running instance keeps working across a CSRF rotation (leave it up for a day, then fire a volume change).
 - **Installed PWA on iOS:** iOS stores home-screen PWAs separately from Safari. Opening `?token=` in Safari doesn't carry over, so enter the token at the in-app prompt (or re-add the PWA from the token URL).
-- **GitHub Actions:** make sure Actions is enabled for the repo so `ci.yml` runs.
 - **Credentials to rotate:** none found committed. Still, if the Protect local account password was ever reused elsewhere, keep it dedicated as the README advises.
 - **Before deploy:** `pip install -r requirements.txt` (new minimum versions), make sure `.soundboard_token` is not world-readable on Windows (POSIX 0600 doesn't apply there; the file inherits folder ACLs), and consider a TLS front end.
 
@@ -102,5 +101,4 @@ CI: `.github/workflows/ci.yml` runs ruff + pytest on 3.9/3.12/3.13 with ffmpeg i
 
 - **Siren duration ceiling of 300 s.** I picked a conservative cap; I don't know Protect's own maximum. Easy to change: `MAX_SIREN_SECONDS` in `protect_engine.py`.
 - **CSRF header name.** I assumed UniFi OS uses `X-Updated-Csrf-Token` for rotation (this matches common Protect client libraries). It wasn't verified against your 7.1.60 console.
-- **Python 3.9 in the CI matrix.** I verified it only by reading the code (no 3.9 interpreter here). `pytest>=8` will resolve to an 8.x release on 3.9.
 - **`ruff format`.** I didn't adopt it, because it would reformat most files; the lint rules only.
