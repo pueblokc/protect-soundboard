@@ -1,0 +1,20 @@
+[tool.ruff]
+line-length = 130
+target-version = "py39"
+extend-exclude = ["promo"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "S"]
+ignore = [
+  "S501",  # verify=False: Protect consoles ship a self-signed cert (documented)
+  "S104",  # binding 0.0.0.0 is intentional; access is gated by the token
+  "S603",  # subprocess with a fixed argv (ffmpeg), no shell
+  "B904",
+  "S110",  # best-effort cleanup (ws.close, temp removal, Windows-only tweaks)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
