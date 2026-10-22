@@ -16,3 +16,12 @@ Thumbs.db
 .vscode/
 .idea/
 node_modules/
+
+# auto-generated access token (see ARCHITECTURE.md "Auth")
+.soundboard_token
+# partial writes
+*.part
+*.tmp
+.pytest_cache/
+.ruff_cache/
+.venv/

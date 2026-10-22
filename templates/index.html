@@ -110,22 +110,42 @@ $("#yr").textContent=new Date().getFullYear();
 const loud=()=>$("#loud").checked, vol=k=>+$("#r-"+k).value;
 let toastT;
 function toast(m,err){const t=$("#toast");t.textContent=m;t.className="show"+(err?" err":"");clearTimeout(toastT);toastT=setTimeout(()=>t.className="",2200);}
-async function post(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});return r.json();}
+// access token: ?token=... once (then stripped from the URL), remembered per device
+const TK="soundboard_token";
+function store(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}}
+function stored(k){try{return localStorage.getItem(k)||"";}catch(e){return "";}}
+(()=>{const u=new URL(location.href),t=u.searchParams.get("token");
+  if(t){store(TK,t);u.searchParams.delete("token");history.replaceState(null,"",u.pathname+u.search+u.hash);}})();
+let token=stored(TK),pending=false;
+function needToken(){if(pending)return;pending=true;setTimeout(askToken,0);}
+function askToken(){pending=true;
+  const t=prompt("Access token (printed in the server console, or SOUNDBOARD_TOKEN):");pending=false;
+  if(t&&t.trim()){token=t.trim();store(TK,token);$("#warn").style.display="none";build().catch(e=>toast("✕ "+e,1));refresh();}
+  else{const w=$("#warn");w.style.display="block";w.style.cursor="pointer";w.textContent="Not signed in — tap here to enter the access token.";w.onclick=()=>{w.onclick=null;askToken();};}}
+async function api(u,opt={}){const sent=token;opt.headers=Object.assign({"X-Soundboard-Token":sent},opt.headers||{});
+  const r=await fetch(u,opt);let j;try{j=await r.json();}catch(e){j={ok:false,error:"HTTP "+r.status};}
+  if(r.status===401&&token===sent){store(TK,null);token="";needToken();}  // ignore stale 401s for an old token
+  return j;}
+const get=u=>api(u);
+const post=(u,b)=>api(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});
 for(const k of ["horn","siren"]){const r=$("#r-"+k),p=$("#p-"+k);
   r.addEventListener("input",()=>p.textContent=r.value);
-  r.addEventListener("change",async()=>{const j=await post("/api/volume",{target:k,volume:+r.value,allow_loud:loud()});if(j.ok){r.value=j.volume;p.textContent=j.volume;}refresh();});}
+  r.addEventListener("change",async()=>{try{const j=await post("/api/volume",{target:k,volume:+r.value,allow_loud:loud()});
+    if(j.ok){r.value=j.volume;p.textContent=j.volume;}else toast("✕ "+(j.error||"volume failed"),1);}catch(e){toast("✕ "+e,1);}refresh();});}
 async function fire(el,fn,label){el.classList.add("fire");setTimeout(()=>el.classList.remove("fire"),500);
-  el.disabled=true;try{const j=await fn();toast(j.ok?("▶ "+label):("✕ "+(j.error||"failed")),!j.ok);}catch(e){toast("✕ "+e,1);}el.disabled=false;refresh();}
+  el.disabled=true;try{const j=await fn();toast(j.ok?("▶ "+label):("✕ "+(j.error||"failed")),!j.ok);}catch(e){toast("✕ "+e,1);}finally{el.disabled=false;}refresh();}
+// build a button with text nodes only — labels/filenames are data, never HTML
+function mkBtn(icon,label){const b=document.createElement("button");b.className="btn";
+  const ic=document.createElement("span");ic.className="ic";ic.textContent=icon;b.append(ic,document.createTextNode(label));return b;}
 async function build(){
-  const p=await(await fetch("/api/presets")).json();
+  if(!token){needToken();return;}
+  const p=await get("/api/presets");
   const gt=$("#grid-tts");gt.innerHTML="";
-  (p.tts||[]).forEach(x=>{const b=document.createElement("button");b.className="btn";if(x.color){b.style.background=x.color;b.style.color="#11111b";}
-    b.innerHTML=`<span class="ic">${x.icon||"💬"}</span>${x.label}`;
+  (p.tts||[]).forEach(x=>{const b=mkBtn(x.icon||"💬",x.label||"");if(x.color){b.style.background=x.color;b.style.color="#11111b";}
     b.onclick=()=>fire(b,()=>post("/api/speak",{text:x.text,volume:vol("horn"),allow_loud:loud()}),x.label);gt.appendChild(b);});
-  const s=await(await fetch("/api/sounds")).json();
+  const s=await get("/api/sounds");
   const gs=$("#grid-snd");gs.innerHTML="";
-  (s.sounds||[]).forEach(f=>{const name=f.replace(/\.[^.]+$/,"");const b=document.createElement("button");b.className="btn";
-    b.innerHTML=`<span class="ic">🔊</span>${name}`;
+  (s.sounds||[]).forEach(f=>{const name=f.replace(/\.[^.]+$/,"");const b=mkBtn("🔊",name);
     b.onclick=()=>fire(b,()=>post("/api/play-sound",{file:f,volume:vol("horn"),allow_loud:loud()}),name);gs.appendChild(b);});
   $("#snd-empty").style.display=(s.sounds||[]).length?"none":"block";
 }
@@ -134,8 +154,9 @@ $("#speak").onclick=()=>{const t=$("#tts-text").value.trim();if(!t)return toast(
 $("#tts-text").addEventListener("keydown",e=>{if(e.key==="Enter")$("#speak").click();});
 $("#siren-go").onclick=()=>fire($("#siren-go"),()=>post("/api/siren",{action:"activate",duration:+$("#dur").value,volume:vol("siren"),allow_loud:loud()}),"siren on");
 $("#siren-stop").onclick=()=>fire($("#siren-stop"),()=>post("/api/siren",{action:"stop"}),"siren off");
-async function refresh(){try{const s=await(await fetch("/api/status")).json();
-  if(s.error){$("#warn").style.display="block";$("#warn").textContent="NVR error: "+s.error;return;}
+async function refresh(){if(!token)return;try{const s=await get("/api/status");
+  if(s.auth)return;
+  if(s.error){const w=$("#warn");w.onclick=null;w.style.cursor="";w.style.display="block";w.textContent="NVR error: "+s.error;return;}
   $("#warn").style.display="none";
   led("#led-horn",s.horn.connected);$("#vol-horn").textContent=s.horn.volume??"–";
   led("#led-siren",s.siren.connected);$("#led-siren").classList.toggle("active",!!s.siren.active);
@@ -143,7 +164,7 @@ async function refresh(){try{const s=await(await fetch("/api/status")).json();
   $("#pill-tts").textContent=(s.tts&&s.tts.elevenlabs&&s.tts.mode&&s.tts.mode!=="unifi")?"🎙 premium voice":"🎙 clean voice";
 }catch(e){}}
 function led(sel,on){const l=$(sel);l.classList.remove("on","off");l.classList.add(on?"on":"off");}
-build();refresh();setInterval(refresh,8000);
+build().catch(e=>toast("✕ "+e,1));refresh();setInterval(refresh,8000);
 if("serviceWorker"in navigator)navigator.serviceWorker.register("/static/sw.js").catch(()=>{});
 </script>
 </body>
