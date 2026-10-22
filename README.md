@@ -15,7 +15,8 @@
 
 **Tap-to-play messages, sound effects, and siren control for the UniFi Protect AI Horn Speaker + PoE Siren.**
 
-A small, self-hosted, mobile-first PWA. Type any text and your AI Horn *speaks it* in a premium voice.
+A small, self-hosted, mobile-first PWA. Type any text and your AI Horn *speaks it* (Protect's clean native
+voice by default; premium ElevenLabs voice optional).
 Tap a preset to bark "get off my lawn." Slam the siren. All from your phone.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -46,7 +47,7 @@ Tap a preset to bark "get off my lawn." Slam the siren. All from your phone.
 | Feature | Description |
 |---------|-------------|
 | 🗣️ **Say something** | Type any text → the AI Horn speaks it aloud, live, in Protect's **clean native voice**. |
-| 💬 **Message presets** | One-tap spoken messages — *Get Off My Lawn*, *Intruder Alert*, *You're Being Recorded*, *No Soliciting*… (fully editable in-app). |
+| 💬 **Message presets** | One-tap spoken messages — *Get Off My Lawn*, *Intruder Alert*, *You're Being Recorded*, *No Soliciting*… (edit `presets.json`, or `POST /api/presets`). |
 | 🔊 **Sound effects** | Drop any `.mp3`/`.wav` into `sounds/` and it appears as a button. Air horn, alarm beep, dog bark, whatever. *(streamed via talkback — see the firmware note below)* |
 | 🚨 **Siren** | Trigger the PoE siren for 5 / 10 / 30 / 60 s, or stop it instantly. |
 | 🎚️ **Volume** | Live sliders for horn + siren, clamped to a safety cap (default 60%), with an **Allow loud** override. |
@@ -112,10 +113,16 @@ cp .env.example .env          # fill in your NVR host + a Protect local admin
 pip install -r requirements.txt
 #  ↑ also requires ffmpeg on PATH  (winget install ffmpeg | brew install ffmpeg | apt install ffmpeg)
 
-python app.py                 # → http://127.0.0.1:5123
+python app.py                 # → prints http://<this-host>:5123/?token=…
 ```
 
-Then open `http://127.0.0.1:5123` on your phone or desktop. Done.
+Open the printed `/?token=…` link once on each phone/desktop. The page remembers the token and
+removes it from the address bar. Without it, every control returns `401` (the siren can't be
+triggered anonymously).
+
+The token is `SOUNDBOARD_TOKEN` from your environment, or, if that isn't set, a random one
+generated on first start and saved to `.soundboard_token` (git-ignored). Delete that file and
+restart to rotate it.
 
 ### Configure your devices
 
@@ -129,6 +136,11 @@ curl -sk https://<NVR>/proxy/protect/api/bootstrap -b cookies.txt | python -m js
 
 (The doc above walks through this step in detail.)
 
+Environment variables (`.env` or your service manager): `PROTECT_NVR_HOST`, `PROTECT_NVR_USER`,
+`PROTECT_NVR_PASS`, optional `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` / `ELEVENLABS_MODEL`, `FFMPEG`,
+`SOUNDBOARD_TOKEN` (access token), `SOUNDBOARD_BIND` (listen address, default `0.0.0.0`),
+`SOUNDBOARD_PORT`, and `SOUNDBOARD_AUTH=off` (disables the token; only behind your own auth proxy).
+
 | Key | What it is |
 |-----|-----------|
 | `host` | Your NVR / console IP or hostname |
@@ -136,6 +148,7 @@ curl -sk https://<NVR>/proxy/protect/api/bootstrap -b cookies.txt | python -m js
 | `devices.horn_mac` | That speaker's `mac` (used by the built-in-TTS fallback) |
 | `devices.siren_id` | The siren's `id` from `bootstrap.sirens[]` |
 | `max_volume` | Safety cap (0–100). The UI's "Allow loud" toggle overrides it per-press. |
+| `port` | HTTP port (default 5123; env `SOUNDBOARD_PORT` overrides) |
 | `tts_mode` | **`unifi`** (default — clean native voice, recommended) · `elevenlabs_then_unifi` (premium ElevenLabs via talkback, **may garble**, falls back to native) · `elevenlabs` (premium only) |
 
 ---
@@ -143,7 +156,7 @@ curl -sk https://<NVR>/proxy/protect/api/bootstrap -b cookies.txt | python -m js
 ## 🧩 Requirements
 
 - **Python 3.9+**
-- **ffmpeg** on `PATH` — talkback transcodes everything to AAC-LC through it. *No ffmpeg = no audio* (silent fail).
+- **ffmpeg** on `PATH` — talkback transcodes everything to AAC-LC through it. *No ffmpeg = no sound effects* (the button shows an "ffmpeg not found" error). Spoken text uses native TTS and doesn't need it.
 - A **UniFi Protect** console on **7.x** with an **AI Horn Speaker** (or any Protect speaker) and, optionally, a **PoE siren**.
 - A **Protect local admin account** (created in console OS Settings → Admins). Use a dedicated minimal one.
 - *(Optional)* an **ElevenLabs** API key for premium TTS. Without it, the app uses UniFi's free built-in voice.
@@ -154,6 +167,10 @@ curl -sk https://<NVR>/proxy/protect/api/bootstrap -b cookies.txt | python -m js
 
 - **No secrets live in this repo.** Credentials come from `.env` (git-ignored) or your service manager's
   environment. `config.json` holds only device IDs and tuning — no passwords.
+- **Every API call needs the access token** (see Quick start), sent in an `X-Soundboard-Token` header. Plain
+  cross-site form posts are rejected, so a random web page can't fire your siren through your browser.
+- The built-in Flask server speaks plain HTTP. On anything but a trusted LAN, put it behind HTTPS
+  (reverse proxy / Tailscale) so the token isn't sniffable.
 - Use a **dedicated, minimal-permission Protect local account** for the app rather than your primary login.
 - This app talks to Protect's **private/undocumented API**. It works today on Protect 7.x; Ubiquiti can change
   it. Treat it as best-effort, not a supported integration.
@@ -166,7 +183,7 @@ curl -sk https://<NVR>/proxy/protect/api/bootstrap -b cookies.txt | python -m js
 
 ```
 protect-soundboard/
-├── app.py                # Flask app + JSON API
+├── app.py                # Flask app + JSON API + token auth
 ├── protect_engine.py     # private-API: status, siren, volume, built-in TTS
 ├── talkback.py           # WebSocket audio streaming (the real magic)
 ├── tts.py                # ElevenLabs → mp3 bytes, disk-cached
@@ -177,6 +194,8 @@ protect-soundboard/
 ├── static/               # PWA manifest, service worker, icon
 ├── docs/
 │   └── CONTROLLING-UNIFI-PROTECT-AUDIO.md   # standalone how-to + code
+├── tests/                # pytest suite (mocked NVR — no hardware needed)
+├── ARCHITECTURE.md       # modules, data flow, API reference
 └── promo/                # brand kit: icons, social cards, ASCII art, post copy
 ```
 
