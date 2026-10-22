@@ -10,6 +10,9 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+MIN_SIREN_SECONDS = 1
+MAX_SIREN_SECONDS = 300  # hard ceiling; the UI offers 5-60 s
+
 
 class ProtectEngine:
     def __init__(self, host, username, password, cfg):
@@ -45,25 +48,37 @@ class ProtectEngine:
         if not self._auth and not self.login():
             raise RuntimeError("Protect auth failed")
 
+    def _track_csrf(self, r):
+        # UniFi OS rotates the CSRF token; a stale one makes writes fail with 401/403.
+        tok = r.headers.get("X-Updated-Csrf-Token")
+        if tok and tok != self.csrf:
+            self.csrf = tok
+            self.s.headers["X-CSRF-Token"] = tok
+
     def _req(self, method, url, **kw):
         self._ensure()
         kw.setdefault("timeout", 20)
         r = self.s.request(method, url, **kw)
+        self._track_csrf(r)
         if r.status_code == 401:
             self._auth = False
             self._ensure()
             r = self.s.request(method, url, **kw)
+            self._track_csrf(r)
         return r
 
     def get_status(self):
-        b = self._req("GET", f"{self.api}/bootstrap").json()
-        horn = next((x for x in b.get("speakers", []) if x["id"] == self.horn_id), None)
-        siren = next((x for x in b.get("sirens", []) if x["id"] == self.siren_id), None)
+        r = self._req("GET", f"{self.api}/bootstrap")
+        if r.status_code != 200:
+            raise RuntimeError(f"Protect bootstrap failed: HTTP {r.status_code}")
+        b = r.json()
+        horn = next((x for x in b.get("speakers") or [] if x.get("id") == self.horn_id), None)
+        siren = next((x for x in b.get("sirens") or [] if x.get("id") == self.siren_id), None)
         return {
             "horn": {"name": horn and horn.get("name"), "volume": horn and horn.get("volume"),
                      "connected": bool(horn) and horn.get("state") == "CONNECTED"},
             "siren": {"name": siren and siren.get("name"), "volume": siren and siren.get("volume"),
-                      "active": bool(siren) and siren.get("sirenStatus", {}).get("isActive"),
+                      "active": bool(siren) and bool((siren.get("sirenStatus") or {}).get("isActive")),
                       "connected": bool(siren) and siren.get("state") == "CONNECTED"},
             "max_volume": self.max_volume,
         }
@@ -73,6 +88,8 @@ class ProtectEngine:
         return vol if allow_loud else min(vol, self.max_volume)
 
     def set_volume(self, target, volume, allow_loud=False):
+        if target not in ("horn", "siren"):
+            raise ValueError(f"Unknown volume target: {target!r}")
         v = self._clamp(volume, allow_loud)
         ep = f"{self.api}/speakers/{self.horn_id}" if target == "horn" else f"{self.api}/sirens/{self.siren_id}"
         r = self._req("PATCH", ep, json={"volume": v})
@@ -93,11 +110,12 @@ class ProtectEngine:
         return {"ok": r.status_code == 200, "status": r.status_code}
 
     def activate_siren(self, duration=10, volume=None, allow_loud=False):
+        duration = max(MIN_SIREN_SECONDS, min(MAX_SIREN_SECONDS, int(duration)))
         if volume is not None:
             self.set_volume("siren", volume, allow_loud)
         r = self._req("PATCH", f"{self.api}/sirens/{self.siren_id}",
-                      json={"sirenStatus": {"isActive": True, "duration": int(duration) * 1000}})
-        return {"ok": r.status_code == 200, "status": r.status_code}
+                      json={"sirenStatus": {"isActive": True, "duration": duration * 1000}})
+        return {"ok": r.status_code == 200, "status": r.status_code, "duration": duration}
 
     def stop_siren(self):
         r = self._req("PATCH", f"{self.api}/sirens/{self.siren_id}",
